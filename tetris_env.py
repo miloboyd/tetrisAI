@@ -7,6 +7,7 @@ import numpy as np
 import gym
 import pygame
 from gym import spaces
+from colors import Colors
 
 # Initialize Pygame (dummy audio)
 pygame.init()
@@ -58,6 +59,19 @@ class TetrisEnv(gym.Env):
         # For reward delta
         self.last_score = 0
         self._screen = None
+        self.cleared = False
+
+        #visual setup stuff
+        self.title_font = pygame.font.Font(None, 40)
+        self.score_surface = self.title_font.render("Score", True, Colors.white)
+        self.next_surface = self.title_font.render("Next", True, Colors.white)
+        self.game_over_surface = self.title_font.render("GAME OVER", True, Colors.white)
+
+        self.score_rect = pygame.Rect(320, 55, 170, 60)
+        self.next_rect = pygame.Rect(320, 215, 170, 180)
+
+        self.screen = pygame.display.set_mode((500, 620))
+        pygame.display.set_caption("Python Tetris")
 
     def reset(self):
         """Start a new episode."""
@@ -74,6 +88,7 @@ class TetrisEnv(gym.Env):
             self.game.move_right()
         elif action == 2:
             self.game.move_down()
+            self.game.update_score(0, 1)
         elif action == 3 and hasattr(self.game, 'hard_drop'):
             self.game.hard_drop()
         elif action == 4:
@@ -83,23 +98,94 @@ class TetrisEnv(gym.Env):
 
         # Gravity tick
         self.game.move_down()
+        self.game.update_bot()
+
+        grid_matrix = self.get_grid_matrix()  # You'll define this below
+        holes = self.count_holes(grid_matrix)
+        agg_height = self.get_aggregate_height(grid_matrix)
+        bumpiness = self.get_bumpiness(grid_matrix)
 
         # Reward: change in score
         current = self.game.score
+
+        # Compute reward based on features
+        reward = 0
         reward = current - self.last_score
+        #reward += cleared * 10                   # Incentivize clearing lines
+        reward -= holes * 0.5                    # Penalize holes
+        reward -= agg_height * 0.1               # Penalize height
+        reward -= bumpiness * 0.2                # Penalize uneven surfaces
+
         self.last_score = current
 
         # Check termination
         done = self.game.game_over
         info = {'score': current}
 
+        #Drawing
+        score_value_surface = self.title_font.render(str(self.game.score), True, Colors.white)
+
+        self.screen.fill(Colors.dark_blue)
+        self.screen.blit(self.score_surface, (365, 20, 50, 50))
+        self.screen.blit(self.next_surface, (375, 180, 50, 50))
+
+        if self.game.game_over == True:
+           self.screen.blit(self.game_over_surface, (320, 450, 50, 50))
+
+        pygame.draw.rect(self.screen, Colors.light_blue, self.score_rect, 0, 10)
+        self.screen.blit(score_value_surface, score_value_surface.get_rect(centerx = self.score_rect.centerx, 
+            centery = self.score_rect.centery))
+        pygame.draw.rect(self.screen, Colors.light_blue, self.next_rect, 0, 10)
+        self.game.draw(self.screen)
+
+        pygame.display.update()
+
         return self._get_observation(), reward, done, info
+
+
+
+
+
+    def get_column_heights(self, grid):
+        heights = [0] * self.game.grid.num_cols
+        for col in range(self.game.grid.num_cols):
+            for row in range(self.game.grid.num_rows):
+                if grid[row][col] != 0:
+                    heights[col] = self.game.grid.num_rows - row
+                    break
+        return heights
+
+    def get_aggregate_height(self, grid):
+        heights = self.get_column_heights(grid)
+        return sum(heights)
+
+    def count_holes(self, grid):
+        holes = 0
+        for col in range(self.game.grid.num_cols):
+            block_found = False
+            for row in range(self.game.grid.num_rows):
+                if grid[row][col] != 0:
+                    block_found = True
+                elif block_found and grid[row][col] == 0:
+                    holes += 1
+        return holes
+
+    def get_bumpiness(self, grid):
+        heights = self.get_column_heights(grid)
+        bumpiness = 0
+        for i in range(len(heights) - 1):
+            bumpiness += abs(heights[i] - heights[i + 1])
+        return bumpiness
+    
+    def get_grid_matrix(self):
+        return [row[:] for row in self.game.grid.grid]
+
 
     def render(self, mode='human'):
         """Render the game via Pygame."""
         if self._screen is None:
             cell_size = 30
-            w, h = self.grid_width * cell_size, self.grid_height * cell_size
+            w, h = self.game.grid_width * cell_size, self.game.grid_height * cell_size
             pygame.init()
             self._screen = pygame.display.set_mode((w, h))
         self._screen.fill((0, 0, 0))

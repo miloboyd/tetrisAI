@@ -2,6 +2,7 @@
 
 import os
 import numpy as np
+from pygame import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -134,6 +135,7 @@ def train():
 
     # main training loop
     for ep in range(start_ep, end_ep):
+        env.game.game_over = False
         state = env.reset()
         total_reward = 0
         done = False
@@ -153,6 +155,9 @@ def train():
             total_reward += reward
             replay_buffer.push((state, action, reward, next_state, done))
             state = next_state
+
+            # Wait for x milliseconds to better interpret AI actions
+            time.delay(0)
 
             if len(replay_buffer) >= BATCH_SIZE:
                 s, a, r, s2, d = replay_buffer.sample(BATCH_SIZE)

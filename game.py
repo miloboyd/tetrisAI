@@ -175,3 +175,9 @@ class Game:
 			if self.lock_delay_timer <= 0:
 				self.lock_block()
 				self.locking_phase = False
+
+	def update_bot(self):
+
+		if self.locking_phase:
+			self.lock_block()
+			self.locking_phase = False
