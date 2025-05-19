@@ -49,10 +49,11 @@ class TetrisEnv(gym.Env):
         self.grid_height, self.grid_width = len(grid), len(grid[0])
 
         # Action and observation spaces
+        self.num_channels = 3
         self.action_space = spaces.Discrete(6)
         self.observation_space = spaces.Box(
             low=0, high=1,
-            shape=(self.grid_height, self.grid_width),
+            shape=(self.num_channels, self.grid_height, self.grid_width),
             dtype=np.int8
         )
 
@@ -77,7 +78,7 @@ class TetrisEnv(gym.Env):
         """Start a new episode."""
         self.game.reset()
         self.last_score = self.game.score
-        return self._get_observation()
+        return self._get_observation_wide()
 
     def step(self, action):
         """Apply action, advance game, and return (obs, reward, done, info)."""
@@ -90,7 +91,7 @@ class TetrisEnv(gym.Env):
             self.game.move_down()
             self.game.update_score(0, 1)
         elif action == 3 and hasattr(self.game, 'hard_drop'):
-            self.game.hard_drop()
+            rows_cleared = self.game.hard_drop()
         elif action == 4:
             self.game.rotate_clockwise()
         elif action == 5:
@@ -98,9 +99,12 @@ class TetrisEnv(gym.Env):
 
         # Gravity tick
         self.game.move_down()
-        self.game.update_bot()
+        if action == 3:
+            temp = self.game.update_bot()
+        else:
+            rows_cleared = self.game.update_bot()
 
-        grid_matrix = self.get_grid_matrix()  # You'll define this below
+        grid_matrix = self.get_grid_matrix()
         holes = self.count_holes(grid_matrix)
         agg_height = self.get_aggregate_height(grid_matrix)
         bumpiness = self.get_bumpiness(grid_matrix)
@@ -109,12 +113,19 @@ class TetrisEnv(gym.Env):
         current = self.game.score
 
         # Compute reward based on features
-        reward = 0
-        reward = current - self.last_score
-        #reward += cleared * 10                   # Incentivize clearing lines
-        reward -= holes * 0.5                    # Penalize holes
-        reward -= agg_height * 0.1               # Penalize height
-        reward -= bumpiness * 0.2                # Penalize uneven surfaces
+        reward = 0                               
+        reward = current - self.last_score       # Incentivise gaining score
+        if rows_cleared == 1:                    # Incentivise row clears
+            reward += 10
+        elif rows_cleared == 2:
+            reward += 20
+        elif rows_cleared == 3:
+            reward += 30
+        elif rows_cleared == 4:
+            reward += 100  # Tetris
+        reward -= holes * 0.5                    # Penalise holes
+        reward -= agg_height * 0.1               # Penalise height
+        reward -= bumpiness * 0.2                # Penalise uneven surfaces
 
         self.last_score = current
 
@@ -140,7 +151,7 @@ class TetrisEnv(gym.Env):
 
         pygame.display.update()
 
-        return self._get_observation(), reward, done, info
+        return self._get_observation_wide(), reward, done, info
 
 
 
@@ -197,6 +208,26 @@ class TetrisEnv(gym.Env):
         grid = self.game.grid.grid
         arr = np.array(grid, dtype=np.int8)
         return (arr > 0).astype(np.int8)
+
+    def _get_observation_wide(self):
+        obs = np.zeros((self.num_channels, self.grid_height, self.grid_width), dtype=np.int8)
+
+        # Channel 0: board grid
+        for i in range(self.grid_height):
+            for j in range(self.grid_width):
+                obs[0, i, j] = self.grid[i][j]
+
+        # Channel 1: current piece mask at its position
+        for block in self.current_piece.get_masked_blocks():  # You may need to implement this
+            x, y = block
+            if 0 <= y < self.grid_height and 0 <= x < self.grid_width:
+                obs[1, y, x] = 1.0
+
+        # Channel 2: encode next piece type
+        next_piece_index = self.blocks.get_index(self.next_piece.shape)  # assume index 0 to N-1
+        obs[2, :, :] = next_piece_index / len(self.blocks.shapes)  # broadcast same value
+
+        return obs
 
     def close(self):
         """Cleanup Pygame."""

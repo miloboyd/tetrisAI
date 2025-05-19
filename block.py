@@ -23,6 +23,11 @@ class Block:
 			position = Position(position.row + self.row_offset, position.column + self.column_offset)
 			moved_tiles.append(position)
 		return moved_tiles
+	
+	def get_masked_blocks(self):
+		#Returns list of (x, y) tuples corresponding to the piece's occupied cells on the grid.
+		block_positions = self.get_cell_positions()
+		return [(pos.column, pos.row) for pos in block_positions]
 
 	'''
 	def rotate(self):

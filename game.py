@@ -84,8 +84,9 @@ class Game:
 		
 		# Check and clear full rows
 		rows_cleared = self.grid.clear_full_rows()
-		if rows_cleared > 0:
-			self.update_score(rows_cleared, 0)
+		#if rows_cleared > 0:
+		#	self.update_score(rows_cleared, 0)
+		self.update_score(rows_cleared, 0) # replaced top 2 rows
 		
 		# Set up the next block
 		self.current_block = self.next_block
@@ -94,6 +95,8 @@ class Game:
 		# Check if game is over
 		if self.block_fits() == False:
 			self.game_over = True
+
+		return rows_cleared #added
 
 	def lock_block(self):
 		tiles = self.current_block.get_cell_positions()
@@ -106,6 +109,9 @@ class Game:
 			self.update_score(rows_cleared, 0)
 		if self.block_fits() == False:
 			self.game_over = True
+		
+		return rows_cleared #added
+
 
 	def reset(self):
 		self.grid.reset()
@@ -178,6 +184,13 @@ class Game:
 
 	def update_bot(self):
 
+	#	if self.locking_phase:
+	#		self.lock_block()
+	#		self.locking_phase = False
+
 		if self.locking_phase:
-			self.lock_block()
+			rows_cleared = self.lock_block()
 			self.locking_phase = False
+			return rows_cleared
+		return 0
+			
