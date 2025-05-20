@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 
+ep1450_-164reward.pth
+ep360 trained well tested bad.pth
+ep240.pth
+ep600 testgoodrunbad.pth

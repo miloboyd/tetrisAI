@@ -52,12 +52,7 @@ class Game:
 		self.current_block.move(1, 0)
 		if self.block_inside() == False or self.block_fits() == False:
 			self.current_block.move(-1, 0)
-			
-			if not self.locking_phase:
-				self.locking_phase = True
-				self.lock_delay_timer = self.lock_delay
-			else: 
-				self.locking_phase = False
+			self.locking_phase = True
 	
 	def hard_drop(self):
 		"""

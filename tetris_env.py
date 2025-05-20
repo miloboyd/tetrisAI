@@ -9,14 +9,6 @@ import pygame
 from gym import spaces
 from colors import Colors
 
-# Initialize Pygame (dummy audio)
-pygame.init()
-try:
-    pygame.mixer.pre_init()
-    pygame.mixer.init()
-except pygame.error:
-    pass
-
 # Monkey-patch Pygame sound to avoid audio errors
 class DummySound:
     def play(self): pass
@@ -45,8 +37,7 @@ class TetrisEnv(gym.Env):
         # Game instance
         self.game = Game()
         # Grid dimensions
-        grid = self.game.grid.grid
-        self.grid_height, self.grid_width = len(grid), len(grid[0])
+        self.grid_height, self.grid_width = len(self.game.grid.grid), len(self.game.grid.grid[0])
 
         # Action and observation spaces
         self.num_channels = 3
@@ -61,18 +52,33 @@ class TetrisEnv(gym.Env):
         self.last_score = 0
         self._screen = None
         self.cleared = False
+        self.stepCount = 0
 
         #visual setup stuff
-        self.title_font = pygame.font.Font(None, 40)
-        self.score_surface = self.title_font.render("Score", True, Colors.white)
-        self.next_surface = self.title_font.render("Next", True, Colors.white)
-        self.game_over_surface = self.title_font.render("GAME OVER", True, Colors.white)
+        self.render = False
 
-        self.score_rect = pygame.Rect(320, 55, 170, 60)
-        self.next_rect = pygame.Rect(320, 215, 170, 180)
 
-        self.screen = pygame.display.set_mode((500, 620))
-        pygame.display.set_caption("Python Tetris")
+    def pyRender(self, render):
+        self.render = render
+        if self.render:
+            # Initialize Pygame (dummy audio)
+            pygame.init()
+            try:
+                pygame.mixer.pre_init()
+                pygame.mixer.init()
+            except pygame.error:
+                pass
+
+            self.title_font = pygame.font.Font(None, 40)
+            self.score_surface = self.title_font.render("Score", True, Colors.white)
+            self.next_surface = self.title_font.render("Next", True, Colors.white)
+            self.game_over_surface = self.title_font.render("GAME OVER", True, Colors.white)
+
+            self.score_rect = pygame.Rect(320, 55, 170, 60)
+            self.next_rect = pygame.Rect(320, 215, 170, 180)
+
+            self.screen = pygame.display.set_mode((500, 620))
+            pygame.display.set_caption("Python Tetris")
 
     def reset(self):
         """Start a new episode."""
@@ -91,7 +97,9 @@ class TetrisEnv(gym.Env):
             self.game.move_down()
             self.game.update_score(0, 1)
         elif action == 3 and hasattr(self.game, 'hard_drop'):
+            #temp = self.game.score
             rows_cleared = self.game.hard_drop()
+            #self.game.score = temp # undo score gain of hard-drop for the sake of training
         elif action == 4:
             self.game.rotate_clockwise()
         elif action == 5:
@@ -104,9 +112,14 @@ class TetrisEnv(gym.Env):
         else:
             rows_cleared = self.game.update_bot()
 
+
+        # Check if Game Over
+        done = self.game.game_over
+
+        # Setup reward values
         grid_matrix = self.get_grid_matrix()
         holes = self.count_holes(grid_matrix)
-        agg_height = self.get_aggregate_height(grid_matrix)
+        height_var = self.get_height_variance(grid_matrix)
         bumpiness = self.get_bumpiness(grid_matrix)
 
         # Reward: change in score
@@ -114,42 +127,48 @@ class TetrisEnv(gym.Env):
 
         # Compute reward based on features
         reward = 0                               
-        reward = current - self.last_score       # Incentivise gaining score
+        #reward = current - self.last_score       # Incentivise gaining score
         if rows_cleared == 1:                    # Incentivise row clears
-            reward += 10
+            reward += 500
         elif rows_cleared == 2:
-            reward += 20
+            reward += 2500
         elif rows_cleared == 3:
-            reward += 30
+            reward += 5000
         elif rows_cleared == 4:
-            reward += 100  # Tetris
-        reward -= holes * 0.5                    # Penalise holes
-        reward -= agg_height * 0.1               # Penalise height
-        reward -= bumpiness * 0.2                # Penalise uneven surfaces
+            reward += 10000  # Tetris
+
+        reward -= holes * 1                    # Penalise holes
+        reward -= height_var * 1                # Penalise height
+        reward -= bumpiness * 0.3                # Penalise uneven surfaces
+        reward += self.stepCount / 100
 
         self.last_score = current
 
-        # Check termination
-        done = self.game.game_over
+        if done:
+            reward -= 200
+
+        
         info = {'score': current}
+        self.stepCount = self.stepCount + 1
 
         #Drawing
-        score_value_surface = self.title_font.render(str(self.game.score), True, Colors.white)
+        if self.render:
+            score_value_surface = self.title_font.render(str(self.game.score), True, Colors.white)
 
-        self.screen.fill(Colors.dark_blue)
-        self.screen.blit(self.score_surface, (365, 20, 50, 50))
-        self.screen.blit(self.next_surface, (375, 180, 50, 50))
+            self.screen.fill(Colors.dark_blue)
+            self.screen.blit(self.score_surface, (365, 20, 50, 50))
+            self.screen.blit(self.next_surface, (375, 180, 50, 50))
 
-        if self.game.game_over == True:
-           self.screen.blit(self.game_over_surface, (320, 450, 50, 50))
+            if self.game.game_over == True:
+                self.screen.blit(self.game_over_surface, (320, 450, 50, 50))
 
-        pygame.draw.rect(self.screen, Colors.light_blue, self.score_rect, 0, 10)
-        self.screen.blit(score_value_surface, score_value_surface.get_rect(centerx = self.score_rect.centerx, 
-            centery = self.score_rect.centery))
-        pygame.draw.rect(self.screen, Colors.light_blue, self.next_rect, 0, 10)
-        self.game.draw(self.screen)
+            pygame.draw.rect(self.screen, Colors.light_blue, self.score_rect, 0, 10)
+            self.screen.blit(score_value_surface, score_value_surface.get_rect(centerx = self.score_rect.centerx, 
+                centery = self.score_rect.centery))
+            pygame.draw.rect(self.screen, Colors.light_blue, self.next_rect, 0, 10)
+            self.game.draw(self.screen)
 
-        pygame.display.update()
+            pygame.display.update()
 
         return self._get_observation_wide(), reward, done, info
 
@@ -166,9 +185,12 @@ class TetrisEnv(gym.Env):
                     break
         return heights
 
-    def get_aggregate_height(self, grid):
+    def get_height_variance(self, grid):
         heights = self.get_column_heights(grid)
-        return sum(heights)
+        mean_height = sum(heights) / len(heights)
+        imbalance_penalty = sum((h - mean_height) ** 2 for h in heights) / len(heights)  # variance
+        base_sum = sum(heights)
+        return base_sum + imbalance_penalty  # penalize imbalance
 
     def count_holes(self, grid):
         holes = 0
@@ -205,8 +227,7 @@ class TetrisEnv(gym.Env):
 
     def _get_observation(self):
         """Return the current grid as a {0,1} numpy array."""
-        grid = self.game.grid.grid
-        arr = np.array(grid, dtype=np.int8)
+        arr = np.array(self.game.grid.grid, dtype=np.int8)
         return (arr > 0).astype(np.int8)
 
     def _get_observation_wide(self):
@@ -215,17 +236,17 @@ class TetrisEnv(gym.Env):
         # Channel 0: board grid
         for i in range(self.grid_height):
             for j in range(self.grid_width):
-                obs[0, i, j] = self.grid[i][j]
+                obs[0, i, j] = self.game.grid.grid[i][j]
 
         # Channel 1: current piece mask at its position
-        for block in self.current_piece.get_masked_blocks():  # You may need to implement this
+        for block in self.game.current_block.get_masked_blocks():  # You may need to implement this
             x, y = block
             if 0 <= y < self.grid_height and 0 <= x < self.grid_width:
-                obs[1, y, x] = 1.0
+                obs[1, y, x] = 1
 
         # Channel 2: encode next piece type
-        next_piece_index = self.blocks.get_index(self.next_piece.shape)  # assume index 0 to N-1
-        obs[2, :, :] = next_piece_index / len(self.blocks.shapes)  # broadcast same value
+        next_piece_id = self.game.next_block.id  # assume index 0 to N-1
+        obs[2, :, :] = next_piece_id / 7  # broadcast same value
 
         return obs
 

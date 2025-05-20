@@ -2,6 +2,7 @@
 
 import os
 import numpy as np
+import pygame
 from pygame import time
 import torch
 import torch.nn as nn
@@ -11,7 +12,7 @@ from tetris_env import TetrisEnv
 # ──────────────────────────────────────────────────────────────
 # Hyperparameters (tweak as needed)
 LR               = 1e-3
-GAMMA            = 0.99
+GAMMA            = 0.992
 EPS_START        = 1.0
 EPS_END          = 0.1
 EPS_DECAY        = 5000
@@ -21,8 +22,9 @@ TARGET_UPDATE    = 10       # in episodes
 CHECKPOINT_PATH  = 'dqn_checkpoint.pth'
 REWARDS_CSV      = 'training_rewards.csv'
 
-MAX_EPISODES     = 1000     # number of episodes per run
+MAX_EPISODES     = 7500     # number of episodes per run
 RESUME_TRAINING  = False    # if False, starts fresh and clears CSV
+RENDERGAME       = False     # render game when training
 # ──────────────────────────────────────────────────────────────
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -50,21 +52,24 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class DQN(nn.Module):
+class DQNCNN(nn.Module):
     def __init__(self, obs_shape, n_actions):
         super().__init__()
-        self.flatten = nn.Flatten()
+        c, h, w = obs_shape
+
         self.net = nn.Sequential(
-            nn.Linear(obs_shape[0] * obs_shape[1], 128),
+            nn.Conv2d(c, 32, kernel_size=3, padding=1),  # (32, 20, 10)
             nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),  # (64, 20, 10)
             nn.ReLU(),
-            nn.Linear(128, n_actions)
+            nn.Flatten(),  # -> 64 * 20 * 10 = 12800
+            nn.Linear(64 * h * w, 512),
+            nn.ReLU(),
+            nn.Linear(512, n_actions)
         )
 
     def forward(self, x):
         x = x.to(device).float()
-        x = self.flatten(x)
         return self.net(x)
 
 
@@ -81,7 +86,7 @@ def load_checkpoint(obs_shape, n_actions):
     else:
         raise KeyError("No model weights found in checkpoint.")
 
-    policy_net = DQN(obs_shape, n_actions).to(device)
+    policy_net = DQNCNN(obs_shape, n_actions).to(device)
     res = policy_net.load_state_dict(policy_state, strict=False)
     print(f"  → Missing keys: {res.missing_keys}")
     print(f"  → Unexpected keys: {res.unexpected_keys}")
@@ -110,6 +115,7 @@ def train():
         os.remove(REWARDS_CSV)
 
     env = TetrisEnv()
+    env.pyRender(RENDERGAME)
     obs_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
@@ -119,7 +125,7 @@ def train():
             load_checkpoint(obs_shape, n_actions)
         end_ep = start_ep + MAX_EPISODES
     else:
-        policy_net = DQN(obs_shape, n_actions).to(device)
+        policy_net = DQNCNN(obs_shape, n_actions).to(device)
         optimizer = optim.Adam(policy_net.parameters(), lr=LR)
         replay_buffer = ReplayBuffer(BUFFER_CAPACITY)
         start_ep = 1
@@ -127,7 +133,7 @@ def train():
         print(f"Starting fresh training for {MAX_EPISODES} episodes")
 
     # target network
-    target_net = DQN(obs_shape, n_actions).to(device)
+    target_net = DQNCNN(obs_shape, n_actions).to(device)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
@@ -141,10 +147,16 @@ def train():
         done = False
 
         while not done:
-            eps = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
+            if env.render:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        done = True
+                        break
+                
+            epsilon = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
             steps_done += 1
 
-            if np.random.rand() < eps:
+            if np.random.rand() < epsilon:
                 action = env.action_space.sample()
             else:
                 with torch.no_grad():
@@ -157,7 +169,7 @@ def train():
             state = next_state
 
             # Wait for x milliseconds to better interpret AI actions
-            time.delay(0)
+            # time.delay(100)
 
             if len(replay_buffer) >= BATCH_SIZE:
                 s, a, r, s2, d = replay_buffer.sample(BATCH_SIZE)
@@ -169,7 +181,11 @@ def train():
 
                 q_values = policy_net(states).gather(1, actions).squeeze()
                 with torch.no_grad():
-                    next_q = target_net(next_states).max(1)[0]
+                    #next_q = target_net(next_states).max(1)[0]
+
+                    # Double DQN to improve performance
+                    next_actions = policy_net(next_states).argmax(1)
+                    next_q = target_net(next_states).gather(1, next_actions.unsqueeze(1)).squeeze()
                 target = rewards + (~dones) * GAMMA * next_q
 
                 loss = nn.functional.mse_loss(q_values, target)
@@ -181,12 +197,12 @@ def train():
         if ep % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
         if ep % 10 == 0:
-            print(f"Episode {ep:>6}, Total Reward: {total_reward:>6}")
+            print(f"Episode {ep:<5}, Total Reward: {total_reward:.2f}, Epsilon: {epsilon:.2f}")
 
         # log & checkpoint
         with open(REWARDS_CSV, 'a') as f:
             f.write(f"{ep},{total_reward}\n")
-        if ep % 50 == 0:
+        if ep % 10 == 0:
             torch.save({
                 'episode': ep,
                 'model_state': policy_net.state_dict(),
@@ -195,7 +211,6 @@ def train():
             }, CHECKPOINT_PATH)
 
     env.close()
-
 
 if __name__ == '__main__':
     train()
