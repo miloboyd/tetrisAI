@@ -203,12 +203,14 @@ def train():
         with open(REWARDS_CSV, 'a') as f:
             f.write(f"{ep},{total_reward}\n")
         if ep % 10 == 0:
-            torch.save({
-                'episode': ep,
-                'model_state': policy_net.state_dict(),
-                'optim_state': optimizer.state_dict(),
-                'replay_buffer': replay_buffer
-            }, CHECKPOINT_PATH)
+            # torch.save({
+            #     'episode': ep,
+            #     'model_state': policy_net.state_dict(),
+            #     'optim_state': optimizer.state_dict(),            #get rid of this stupid thing
+            #     'replay_buffer': replay_buffer
+            # }, CHECKPOINT_PATH)
+
+            torch.save(policy_net.state_dict(), CHECKPOINT_PATH)
 
     env.close()
 

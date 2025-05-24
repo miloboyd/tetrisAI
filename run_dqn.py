@@ -61,8 +61,9 @@ def run():
     n_actions = env.action_space.n
 
     model = DQNCNN(obs_shape, n_actions).to(device)
-    checkpoint = torch.load("dqn_checkpoint.pth", weights_only=False)
-    model.load_state_dict(checkpoint['model_state'])
+    checkpoint = torch.load("pretrained_dqn.pth", weights_only=False)
+    #model.load_state_dict(checkpoint['model_state'])
+    model.load_state_dict(checkpoint) # when using 'normally generated' pth as opposed to above line
     model.eval()
 
     def select_action(state):

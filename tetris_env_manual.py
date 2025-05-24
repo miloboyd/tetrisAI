@@ -1,4 +1,4 @@
-# tetris_env.py
+# tetris_env_man.py
 import os
 # Suppress audio by using dummy SDL driver
 os.environ['SDL_AUDIODRIVER'] = 'dummy'
@@ -20,7 +20,7 @@ pygame.mixer.music.stop = lambda *args, **kwargs: None
 
 from game import Game
 
-class TetrisEnv(gym.Env):
+class TetrisEnvMan(gym.Env):
     """
     Custom Gym environment for Tetris with updated team controls:
       0: move left
@@ -58,40 +58,16 @@ class TetrisEnv(gym.Env):
         self.render = False
 
 
-    def pyRender(self, render):
-        self.render = render
-        if self.render:
-            # Initialize Pygame (dummy audio)
-            pygame.init()
-            try:
-                pygame.mixer.pre_init()
-                pygame.mixer.init()
-            except pygame.error:
-                pass
-
-            self.title_font = pygame.font.Font(None, 40)
-            self.score_surface = self.title_font.render("Score", True, Colors.white)
-            self.next_surface = self.title_font.render("Next", True, Colors.white)
-            self.game_over_surface = self.title_font.render("GAME OVER", True, Colors.white)
-
-            self.score_rect = pygame.Rect(320, 55, 170, 60)
-            self.next_rect = pygame.Rect(320, 215, 170, 180)
-
-            self.screen = pygame.display.set_mode((500, 620))
-            pygame.display.set_caption("Python Tetris")
-
     def reset(self):
         """Start a new episode."""
         self.game.reset()
-        self.last_score = 0
-        self._screen = None
-        self.cleared = False
-        self.stepCount = 0
+        self.last_score = self.game.score
         return self._get_observation_wide()
 
     def step(self, action):
         """Apply action, advance game, and return (obs, reward, done, info)."""
         # Action mapping
+        rows_cleared = 0
         if action == 0:
             self.game.move_left()
         elif action == 1:
@@ -108,15 +84,6 @@ class TetrisEnv(gym.Env):
         elif action == 5:
             self.game.rotate_counterclockwise()
 
-        # Gravity tick
-        self.game.move_down()
-        if action == 3:
-            temp = self.game.update_bot()
-        else:
-            rows_cleared = self.game.update_bot()
-
-
-        # Check if Game Over
         done = self.game.game_over
 
         # Setup reward values
@@ -143,36 +110,16 @@ class TetrisEnv(gym.Env):
         reward -= holes * 0.01                    # Penalise holes
         reward -= height_var * 0.01                # Penalise height
         reward -= bumpiness * 0.01                # Penalise uneven surfaces
-        reward += self.stepCount / 100
+        reward += self.stepCount / 10000
 
         reward = reward / 10
         self.last_score = current
 
         if done:
             reward -= 0.5
-
         
         info = {'score': current}
         self.stepCount = self.stepCount + 1
-
-        #Drawing
-        if self.render:
-            score_value_surface = self.title_font.render(str(self.game.score), True, Colors.white)
-
-            self.screen.fill(Colors.dark_blue)
-            self.screen.blit(self.score_surface, (365, 20, 50, 50))
-            self.screen.blit(self.next_surface, (375, 180, 50, 50))
-
-            if self.game.game_over == True:
-                self.screen.blit(self.game_over_surface, (320, 450, 50, 50))
-
-            pygame.draw.rect(self.screen, Colors.light_blue, self.score_rect, 0, 10)
-            self.screen.blit(score_value_surface, score_value_surface.get_rect(centerx = self.score_rect.centerx, 
-                centery = self.score_rect.centery))
-            pygame.draw.rect(self.screen, Colors.light_blue, self.next_rect, 0, 10)
-            self.game.draw(self.screen)
-
-            pygame.display.update()
 
         return self._get_observation_wide(), reward, done, info
 

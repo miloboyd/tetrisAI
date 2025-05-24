@@ -1,6 +1,7 @@
 import pygame,sys
-from game import Game
+import pickle
 from colors import Colors
+from tetris_env_manual import TetrisEnvMan
 
 pygame.init()
 
@@ -17,66 +18,79 @@ pygame.display.set_caption("Python Tetris")
 
 clock = pygame.time.Clock()
 
-game = Game()
+env = TetrisEnvMan()
+state = env.reset()
 
 GAME_UPDATE = pygame.USEREVENT
 pygame.time.set_timer(GAME_UPDATE, 1000)
 
 last_time = pygame.time.get_ticks()
 
-while True:
+# record manual play for pre-training
+recorded_data = []
+action = 0
+done = False
+
+while not done:
 
 	current_time = pygame.time.get_ticks()
 	delta_time = current_time - last_time
 	last_time = current_time
 
-	if game.game_over == False:
-		game.update(delta_time)
+	if env.game.game_over == False:
+		env.game.update(delta_time)
 
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
 			pygame.quit()
 			sys.exit()
 		if event.type == pygame.KEYDOWN:
-			if game.game_over == True:
+			if env.game.game_over == True:
 				pass
 				#game.game_over = False
 				#game.reset()
-			if event.key == pygame.K_LEFT and game.game_over == False:
-				game.move_left()
-			if event.key == pygame.K_RIGHT and game.game_over == False:
-				game.move_right()
-			if event.key == pygame.K_DOWN and game.game_over == False:
-				game.move_down()
-				game.update_score(0, 1)
-			if event.key == pygame.K_UP and game.game_over == False:
-				game.hard_drop()
-			'''	
-			if event.key == pygame.K_UP and game.game_over == False:
-				game.rotate()
-			'''
-			if event.key == pygame.K_PAGEUP and game.game_over == False:
-				game.rotate_counterclockwise()
-			if event.key == pygame.K_PAGEDOWN and game.game_over == False:
-				game.rotate_clockwise()
-		if event.type == GAME_UPDATE and game.game_over == False:
-			game.move_down()
+			if event.key == pygame.K_LEFT and env.game.game_over == False:
+				action = 0
+			if event.key == pygame.K_RIGHT and env.game.game_over == False:
+				action = 1
+			if event.key == pygame.K_DOWN and env.game.game_over == False:
+				action = 2
+			if event.key == pygame.K_UP and env.game.game_over == False:
+				action = 3
+			if event.key == pygame.K_z and env.game.game_over == False:
+				action = 5
+			if event.key == pygame.K_x and env.game.game_over == False:
+				action = 4
+
+			next_state, reward, done, info = env.step(action)
+			recorded_data.append((state, action))
+			state = next_state
+
+		if event.type == GAME_UPDATE and env.game.game_over == False:
+			env.game.move_down()
+
+		
 
 	#Drawing
-	score_value_surface = title_font.render(str(game.score), True, Colors.white)
+	score_value_surface = title_font.render(str(env.game.score), True, Colors.white)
 
 	screen.fill(Colors.dark_blue)
 	screen.blit(score_surface, (365, 20, 50, 50))
 	screen.blit(next_surface, (375, 180, 50, 50))
 
-	if game.game_over == True:
+	if env.game.game_over == True:
 		screen.blit(game_over_surface, (320, 450, 50, 50))
 
 	pygame.draw.rect(screen, Colors.light_blue, score_rect, 0, 10)
 	screen.blit(score_value_surface, score_value_surface.get_rect(centerx = score_rect.centerx, 
 		centery = score_rect.centery))
 	pygame.draw.rect(screen, Colors.light_blue, next_rect, 0, 10)
-	game.draw(screen)
+	env.game.draw(screen)
 
 	pygame.display.update()
 	clock.tick(60)
+
+env.close()
+
+with open("tetris_demonstrations.pkl", "wb") as f:
+	pickle.dump(recorded_data, f)
