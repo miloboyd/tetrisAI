@@ -12,17 +12,17 @@ from tetris_env import TetrisEnv
 # ──────────────────────────────────────────────────────────────
 # Hyperparameters (tweak as needed)
 LR               = 1e-3
-GAMMA            = 0.992
+GAMMA            = 0.995
 EPS_START        = 1.0
 EPS_END          = 0.1
-EPS_DECAY        = 5000
+EPS_DECAY        = 15000
 BATCH_SIZE       = 64
 BUFFER_CAPACITY  = 100000
 TARGET_UPDATE    = 10       # in episodes
 CHECKPOINT_PATH  = 'dqn_checkpoint.pth'
 REWARDS_CSV      = 'training_rewards.csv'
 
-MAX_EPISODES     = 7500     # number of episodes per run
+MAX_EPISODES     = 1000     # number of episodes per run
 RESUME_TRAINING  = False    # if False, starts fresh and clears CSV
 RENDERGAME       = False     # render game when training
 # ──────────────────────────────────────────────────────────────
@@ -52,25 +52,22 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class DQNCNN(nn.Module):
+class DQN(nn.Module):
     def __init__(self, obs_shape, n_actions):
         super().__init__()
-        c, h, w = obs_shape
-
-        self.net = nn.Sequential(
-            nn.Conv2d(c, 32, kernel_size=3, padding=1),  # (32, 20, 10)
+        flat_dim = np.prod(obs_shape)
+        self.model = nn.Sequential(
+            nn.Linear(flat_dim, 512),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),  # (64, 20, 10)
+            nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Flatten(),  # -> 64 * 20 * 10 = 12800
-            nn.Linear(64 * h * w, 512),
-            nn.ReLU(),
-            nn.Linear(512, n_actions)
+            nn.Linear(256, n_actions)
         )
 
     def forward(self, x):
         x = x.to(device).float()
-        return self.net(x)
+        x = x.flatten(start_dim=1)
+        return self.model(x)
 
 
 def load_checkpoint(obs_shape, n_actions):
@@ -86,7 +83,7 @@ def load_checkpoint(obs_shape, n_actions):
     else:
         raise KeyError("No model weights found in checkpoint.")
 
-    policy_net = DQNCNN(obs_shape, n_actions).to(device)
+    policy_net = DQN(obs_shape, n_actions).to(device)
     res = policy_net.load_state_dict(policy_state, strict=False)
     print(f"  → Missing keys: {res.missing_keys}")
     print(f"  → Unexpected keys: {res.unexpected_keys}")
@@ -125,7 +122,7 @@ def train():
             load_checkpoint(obs_shape, n_actions)
         end_ep = start_ep + MAX_EPISODES
     else:
-        policy_net = DQNCNN(obs_shape, n_actions).to(device)
+        policy_net = DQN(obs_shape, n_actions).to(device)
         optimizer = optim.Adam(policy_net.parameters(), lr=LR)
         replay_buffer = ReplayBuffer(BUFFER_CAPACITY)
         start_ep = 1
@@ -133,7 +130,7 @@ def train():
         print(f"Starting fresh training for {MAX_EPISODES} episodes")
 
     # target network
-    target_net = DQNCNN(obs_shape, n_actions).to(device)
+    target_net = DQN(obs_shape, n_actions).to(device)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 

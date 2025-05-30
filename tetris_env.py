@@ -53,6 +53,8 @@ class TetrisEnv(gym.Env):
         self._screen = None
         self.cleared = False
         self.stepCount = 0
+        self.lastAction = 3
+        self.lastGridScore = 0
 
         #visual setup stuff
         self.render = False
@@ -108,6 +110,8 @@ class TetrisEnv(gym.Env):
         elif action == 5:
             self.game.rotate_counterclockwise()
 
+        
+
         # Gravity tick
         self.game.move_down()
         if action == 3:
@@ -125,31 +129,46 @@ class TetrisEnv(gym.Env):
         height_var = self.get_height_variance(grid_matrix)
         bumpiness = self.get_bumpiness(grid_matrix)
 
-        # Reward: change in score
-        current = self.game.score
+        
 
         # Compute reward based on features
-        reward = 0                               
-        #reward = current - self.last_score       # Incentivise gaining score
-        if rows_cleared == 1:                    # Incentivise row clears
-            reward += 5
-        elif rows_cleared == 2:
-            reward += 25
-        elif rows_cleared == 3:
-            reward += 50
-        elif rows_cleared == 4:
-            reward += 100  # Tetris
+        reward = 0                               # Start with neutral reward
 
-        reward -= holes * 0.01                    # Penalise holes
-        reward -= height_var * 0.01                # Penalise height
-        reward -= bumpiness * 0.01                # Penalise uneven surfaces
-        reward += self.stepCount / 100
-
-        reward = reward / 10
+        # Reward: change in score
+        current = self.game.score
+        reward = (current - self.last_score)/10       # Incentivise gaining score  
         self.last_score = current
 
+        #if self.game.block_locked_this_step:
+        gridScore = 0
+        gridScore += (10 - holes) * 0.1                   # Penalise holes
+        gridScore += (10 - height_var) * 0.1         # Penalise height
+        gridScore += (10 - bumpiness) * 0.1          # Penalise uneven surfaces 
+        reward += gridScore #- self.lastGridScore     # Add difference between last blocks 'effect' on the board and current ones (did it make the board state worse or better?)
+        self.lastGridScore = gridScore
+
+        
+        
+        if rows_cleared == 1:                    # Incentivise row clears
+            reward += 250
+        elif rows_cleared == 2:
+            reward += 500
+        elif rows_cleared == 3:
+            reward += 750
+        elif rows_cleared == 4:
+            reward += 1000  # Tetris
+
+        if action == 3 and self.lastAction == 3:
+            reward -= 500                            # punish hard-drop spam
+        self.lastAction = action
+
+
+        #reward += self.stepCount / 100          # reward surviving
+
+        reward = reward * 1                       #scale end reward                     
+
         if done:
-            reward -= 0.5
+            reward -= 50                           #punish dying step
 
         
         info = {'score': current}
