@@ -123,10 +123,6 @@ class TetrisEnvMan(gym.Env):
 
         return self._get_observation_wide(), reward, done, info
 
-
-
-
-
     def get_column_heights(self, grid):
         heights = [0] * self.game.grid.num_cols
         for col in range(self.game.grid.num_cols):
@@ -136,12 +132,22 @@ class TetrisEnvMan(gym.Env):
                     break
         return heights
 
-    def get_height_variance(self, grid):
+    # def get_height_variance(self, grid):
+    #     heights = self.get_column_heights(grid)
+    #     mean_height = sum(heights) / len(heights)
+    #     imbalance_penalty = sum((h - mean_height) ** 2 for h in heights) / len(heights)  # variance
+    #     base_sum = sum(heights)
+    #     return base_sum + imbalance_penalty  # penalize imbalance
+
+    def get_height_scare_factor(self, grid): #height scare instead - above threshold increase exponentially
         heights = self.get_column_heights(grid)
-        mean_height = sum(heights) / len(heights)
-        imbalance_penalty = sum((h - mean_height) ** 2 for h in heights) / len(heights)  # variance
-        base_sum = sum(heights)
-        return base_sum + imbalance_penalty  # penalize imbalance
+        well_column = 9 #disregard this for height calculations
+
+        non_well_heights = [h for i, h in enumerate(heights) if i != well_column] # right side column - can remove from array
+        mean_height = sum(non_well_heights) / len(non_well_heights)
+        scare_height = 12
+        excess_height = max(0, mean_height - scare_height)
+        return excess_height
 
     def count_holes(self, grid):
         holes = 0
@@ -154,13 +160,47 @@ class TetrisEnvMan(gym.Env):
                     holes += 1
         return holes
 
-    def get_bumpiness(self, grid):
+    # def get_bumpiness(self, grid):
+    #     heights = self.get_column_heights(grid)
+    #     bumpiness = 0
+    #     for i in range(len(heights) - 1):
+    #         bumpiness += abs(heights[i] - heights[i + 1])
+    #     return bumpiness
+    
+    def get_bumpiness(self, grid): #introduce assymmetry to 
         heights = self.get_column_heights(grid)
         bumpiness = 0
         for i in range(len(heights) - 1):
-            bumpiness += abs(heights[i] - heights[i + 1])
+            difference += abs(heights[i] - heights[i + 1])
+            if (i < len(heights)) // 2:
+                weight = 0.8
+            else: 
+                weight - 1.2
+            bumpiness += difference * weight
         return bumpiness
     
+    def tetris_ready(self, grid, well_column = 9):
+        heights = self.get_column_heights(grid)
+        well_height = heights[well_column]
+        
+        if well_height > self.game.grid.num_rows - 4:
+            return False
+        
+            # Check 4 rows above well are complete except well column
+        for row_offset in range(4):
+            row_index = self.game.grid.num_rows - well_height - 1 - row_offset
+            if row_index < 0:
+                continue
+                
+            for col in range(self.game.grid.num_cols):
+                if col == well_column:
+                    if grid[row_index][col] != 0:  # Well should be empty
+                        return False
+                else:
+                    if grid[row_index][col] == 0:  # Others should be filled
+                        return False
+        return True
+
     def get_grid_matrix(self):
         return [row[:] for row in self.game.grid.grid]
 
@@ -208,3 +248,4 @@ class TetrisEnvMan(gym.Env):
     def seed(self, seed=None):
         """Gym API: stubbed out (handled externally)."""
         return []
+

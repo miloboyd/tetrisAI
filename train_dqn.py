@@ -19,11 +19,11 @@ EPS_DECAY        = 5000
 BATCH_SIZE       = 64
 BUFFER_CAPACITY  = 100000
 TARGET_UPDATE    = 10       # in episodes
-CHECKPOINT_PATH  = 'dqn_checkpoint.pth'
+CHECKPOINT_PATH  = 'dqn_checkpoint.pth' #change to 'pretrained_dqn.pth' for pretraining. default is 'dqn_checkpoint.pth'
 REWARDS_CSV      = 'training_rewards.csv'
 
 MAX_EPISODES     = 7500     # number of episodes per run
-RESUME_TRAINING  = False    # if False, starts fresh and clears CSV
+RESUME_TRAINING  = False    # if False, starts fresh and clears CSV. change to true for pretraining. 
 RENDERGAME       = False     # render game when training
 # ──────────────────────────────────────────────────────────────
 
