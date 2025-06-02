@@ -167,9 +167,9 @@
       <div class="column is-full-width">
         <h2 id="video" class="title is-3">Video</h2>
         <div class="publication-video">
-          <iframe src="https://www.youtube.com/embed/XlxhTyThwJg?rel=0&amp;showinfo=0"
+          <iframe src="https://www.youtube.com/embed/lIt-SdcPzg8?rel=0&amp;showinfo=0"
                   frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-        </div>
+        </div> 
       </div>
     </div>
     <!--/ Paper video. -->
@@ -186,7 +186,7 @@
         <h2 class="title is-3 has-text-centered">DQN Training</h2>
         <div class="content">
           <p class="has-text-centered">
-            Sample of the reward convergence plot of the DQN training.
+            Sample of the reward convergence plot over episode count.
           </p>
           <img src="./static/images/results/training.png"
             class="teaser-image"
@@ -197,33 +197,58 @@
     </div>
     <!--/ DQN training. -->
 
-
-    <!-- Concurrent Work. -->
+    <!-- Results Discussion. -->
     <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Results discussion and reflection</h2>
+        <h2 class="title is-3">Results Discussion and Reflection</h2>
 
         <div class="content has-text-justified">
+          <h3 class="title is-4">Limitations</h3>
           <p>
-            Our project was unable to produce acceptable results. Although much effort was put into tweaking the neural network parameters, we were unable to get the AI to perform to the skill or beyond the skill of a human player. We could not concretely determine the route cause of our problems, however, some likely causes may include:
-            <ul>
-              <li>We did not manage to translate the state space into a suitable data structure, so that the AI network could not intepret the state space meaningfully.</li>
-              <li>Our network was not sophisticated enough (we used a simple DQN with 2 hidden layers of 64 nodes)</li>
-              <li>The reward structure was not calibrated correctly</li>
-              <li>There was an error in the game envirnoment or processes</li>
-            </ul>
+            Our project faced several critical limitations that prevented the AI from achieving acceptable performance:
           </p>
+          
+          <h4 class="title is-5">Technical Issues</h4>
+          <ul>
+            <li><strong>Tuning reward weights:</strong> Finding the optimal balance between different reward components proved extremely challenging, with the model often optimizing for unintended behaviors.</li>
+            <li><strong>Achieving stable network training:</strong> The training process exhibited high variance and instability, making it difficult to achieve consistent improvements.</li>
+            <li><strong>Network struggles interpreting game state:</strong> Despite our 3-channel observation design, the network appeared unable to effectively parse and understand the spatial relationships in the game board.</li>
+          </ul>
+
+          <h4 class="title is-5">Core Problem</h4>
           <p>
-            Based on the poor results that we got, the likely problem is a combination of all these factors.
+            The fundamental issue was that the AI never showed meaningful skill improvement despite extensive parameter tuning and architectural adjustments. This lack of progress created a negative feedback loop - without positive results to build upon, it became increasingly difficult to maintain development momentum and iterate effectively on the design.
+          </p>
+
+          <h3 class="title is-4">Challenges</h3>
+          <p>
+            <strong>DQN Model Limitations:</strong> Our choice of a simple DQN architecture may have been fundamentally inadequate for the complexity of Tetris. The model demonstrated only rudimentary ability to manipulate game pieces but lacked the sophisticated decision-making required to play at or beyond human level. The poor training results suggest that either our implementation was flawed or the basic DQN approach was insufficient for this task.
+          </p>
+
+          <h3 class="title is-4">Potential Improvements</h3>
+          <p>
+            <strong>CNN Architecture:</strong> A critical insight from our experience is that a Convolutional Neural Network (CNN) would likely be more suitable for processing the spatial 3-channel board representation. CNNs excel at extracting spatial features and patterns, which could help the model better understand board configurations without requiring an excessively large input space. This approach could significantly improve both training efficiency and the model's ability to recognize important game patterns.
+          </p>
+
+          <h3 class="title is-4">Conclusion</h3>
+          <p>
+            While our results were disappointing, the project provided valuable learning experiences. Key takeaways include:
+          </p>
+          <ul>
+            <li>Earlier investment in exploring alternative AI models (such as Policy Gradient methods or Actor-Critic architectures) rather than persisting with DQN could have yielded better results.</li>
+            <li>Reducing state space inputs is crucial for improving training time and reducing overfitting - our current representation may have been too complex.</li>
+            <li>CNN architectures are likely essential for processing spatial game states effectively, as they can capture local patterns and hierarchical features that fully-connected layers struggle to learn.</li>
+          </ul>
+          <p>
+            Future work should focus on implementing a CNN-based architecture for state processing, exploring more advanced reinforcement learning algorithms, and developing more sophisticated reward shaping techniques to guide the learning process more effectively.
           </p>
         </div>
       </div>
     </div>
-    <!--/ Concurrent Work. -->
+    <!--/ Results Discussion. -->
 
   </div>
 </section>
-
 
 <section class="section" id="BibTeX">
   <div class="container is-max-desktop content">
