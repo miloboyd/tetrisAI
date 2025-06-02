@@ -24,9 +24,42 @@ This project implements a DQN agent that learns to play Tetris through trial and
 
 ### Installation
 
-1. **Clone the repository:**
+1. **Install dependencies**
+
+```bash
+pip install torch gymnasium pygame matplotlib numpy pybullet
+```
+
+2. **Clone the repository:**
 ```bash
 git clone https://github.com/miloboyd/tetrisAI.git
 cd cd tetrisAI/
+```
 
+3. **Create new conda environment**
+
+```bash
+conda create -n ai4robotics python=3.8
+conda activate ai4robotics
+```
+
+## Running the Code
+
+### Without pre-training:
+
+1. **Play manually**
+```bash
+python main.py
+```
+
+2. **Train the AI**
+```bash
+python train_dqn.py
+```
+
+3. **Run the trained model**
+
+```bash
+python run_dqn.py
+```
 
