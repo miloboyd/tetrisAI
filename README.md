@@ -63,3 +63,32 @@ python train_dqn.py
 python run_dqn.py
 ```
 
+### Manual pre-training:
+
+1. **Play manually**
+```bash
+python main.py
+```
+When you die, and the program is killed, 'tetris_demonstrations.pkl' will be populated featuring state space and input data. 
+
+2. **Save data to .pth file format**
+```bash
+python pretrainer.py
+```
+
+3. **Modify train_dqn.py**
+Replace the hyperparameters within the file with the following:
+- ```RESUME_TRAINING  = True```
+- ```CHECKPOINT_PATH  = 'dqn_checkpoint.pth'```
+
+4. **Train the AI with manual pre-training**
+```bash
+python train_dqn.py
+```
+
+5. **Run the trained model**
+
+```bash
+python run_dqn.py
+```
+
