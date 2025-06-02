@@ -149,7 +149,7 @@
           </p>
           <h3 class="title is-4">Project Overview</h3>
           <p>
-            This project implements a DQN agent that learns to play Tetris through reinforcement learning, using a multi-channel observation space and carefully crafted reward functions. The AI analyzes board states through multiple features including holes, bumpiness, height factors, and Tetris setup detection to make strategic decisions about piece placement.
+            This project implements a DQN agent that learns to play Tetris through reinforcement learning, using a multi-channel observation space and carefully crafted reward functions. The AI analyses board states through multiple reward features including holes, bumpiness, height factors, and Tetris setup detection to make strategic decisions about piece placement.
           </p>
           <p>
             The implementation uses a 3-channel observation system that captures the current board state, active piece position, and next piece information, allowing the AI to plan ahead and make more informed decisions.
@@ -210,7 +210,7 @@
           
           <h4 class="title is-5">Technical Issues</h4>
           <ul>
-            <li><strong>Tuning reward weights:</strong> Finding the optimal balance between different reward components proved extremely challenging, with the model often optimizing for unintended behaviors.</li>
+            <li><strong>Tuning reward weights:</strong> Finding the optimal balance between different reward components proved extremely challenging, with the model often optimising for unintended behaviors.</li>
             <li><strong>Achieving stable network training:</strong> The training process exhibited high variance and instability, making it difficult to achieve consistent improvements.</li>
             <li><strong>Network struggles interpreting game state:</strong> Despite our 3-channel observation design, the network appeared unable to effectively parse and understand the spatial relationships in the game board.</li>
           </ul>
@@ -227,7 +227,7 @@
 
           <h3 class="title is-4">Potential Improvements</h3>
           <p>
-            <strong>CNN Architecture:</strong> A critical insight from our experience is that a Convolutional Neural Network (CNN) would likely be more suitable for processing the spatial 3-channel board representation. CNNs excel at extracting spatial features and patterns, which could help the model better understand board configurations without requiring an excessively large input space. This approach could significantly improve both training efficiency and the model's ability to recognize important game patterns.
+            <strong>CNN Architecture:</strong> A critical insight from our experience is that a Convolutional Neural Network (CNN) would likely be more suitable for processing the spatial 3-channel board representation. CNNs excel at extracting spatial features and patterns, which could help the model better understand board configurations without requiring an excessively large input space. This approach could significantly improve both training efficiency and the model's ability to recognize important game patterns, despite our inability to extract positive results from our own attempt.
           </p>
 
           <h3 class="title is-4">Conclusion</h3>
@@ -236,7 +236,7 @@
           </p>
           <ul>
             <li>Earlier investment in exploring alternative AI models (such as Policy Gradient methods or Actor-Critic architectures) rather than persisting with DQN could have yielded better results.</li>
-            <li>Reducing state space inputs is crucial for improving training time and reducing overfitting - our current representation may have been too complex.</li>
+            <li>Reducing state space inputs is crucial for improving training time and reducing overfitting, our current representation may have been too complex.</li>
             <li>CNN architectures are likely essential for processing spatial game states effectively, as they can capture local patterns and hierarchical features that fully-connected layers struggle to learn.</li>
           </ul>
           <p>
