@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from train_dqn import DQNCNN, device  # import your model and device config
+from train_dqn import DQN, device  # import your model and device config
 from gym import spaces
 import numpy as np
 
@@ -39,7 +39,7 @@ obs_shape = spaces.Box(
 n_actions = spaces.Discrete(6).n
 
 # CNN model
-policy_net = DQNCNN(obs_shape, n_actions).to(device)
+policy_net = DQN(obs_shape, n_actions).to(device)
 
 # Wrap for supervised imitation training
 class ImitationModel(nn.Module):

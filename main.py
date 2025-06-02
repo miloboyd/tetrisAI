@@ -50,17 +50,17 @@ while not done:
 				#game.game_over = False
 				#game.reset()
 			if event.key == pygame.K_LEFT and env.game.game_over == False:
-				action = 0
+				action = 0 # Move left 
 			if event.key == pygame.K_RIGHT and env.game.game_over == False:
-				action = 1
+				action = 1 # Move right
 			if event.key == pygame.K_DOWN and env.game.game_over == False:
-				action = 2
+				action = 2 # Soft drop / down
 			if event.key == pygame.K_UP and env.game.game_over == False:
-				action = 3
-			if event.key == pygame.K_z and env.game.game_over == False:
-				action = 5
-			if event.key == pygame.K_x and env.game.game_over == False:
-				action = 4
+				action = 3 # hard drop
+			if event.key == pygame.K_PAGEUP and env.game.game_over == False:
+				action = 5 # rotate clockwise
+			if event.key == pygame.K_PAGEDOWN and env.game.game_over == False:
+				action = 4 # rotate counterclockwise
 
 			next_state, reward, done, info = env.step(action)
 			recorded_data.append((state, action))

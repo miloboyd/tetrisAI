@@ -14,6 +14,8 @@ class Game:
 		self.lock_delay = 500 # Lock delay in milliseconds 
 		self.lock_delay_timer = 0 # Timer to track current lock delay
 		self.locking_phase = False # Flag to indicate if piece is in locking phase
+		self.block_locked_this_step = False
+
 
 	def update_score(self, lines_cleared, move_down_points):
 		if lines_cleared == 1:
@@ -90,6 +92,8 @@ class Game:
 		# Check if game is over
 		if self.block_fits() == False:
 			self.game_over = True
+
+		self.block_locked_this_step = True
 
 		return rows_cleared #added
 
@@ -169,6 +173,7 @@ class Game:
 			delta_time: Time elapsed since last update in milliseconds
 		"""
 		# Only update lock delay timer if in locking phase
+		self.block_locked_this_step = False  # ← Reset
 		if self.locking_phase:
 			self.lock_delay_timer -= delta_time
 			
@@ -182,10 +187,11 @@ class Game:
 	#	if self.locking_phase:
 	#		self.lock_block()
 	#		self.locking_phase = False
-
+		self.block_locked_this_step = False  # ← Reset
 		if self.locking_phase:
 			rows_cleared = self.lock_block()
 			self.locking_phase = False
+			self.block_locked_this_step = True  # ← Set flag
 			return rows_cleared
 		return 0
 			

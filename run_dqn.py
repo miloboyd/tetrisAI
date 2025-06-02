@@ -34,40 +34,42 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-class DQNCNN(nn.Module):
+class DQN(nn.Module):
     def __init__(self, obs_shape, n_actions):
         super().__init__()
-        c, h, w = obs_shape
-        
-        self.net = nn.Sequential(
-            nn.Conv2d(c, 32, kernel_size=3, padding=1),  # (32, 20, 10)
+        flat_dim = np.prod(obs_shape)
+        self.model = nn.Sequential(
+            nn.Linear(flat_dim, 512),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),  # (64, 20, 10)
+            nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Flatten(),  # -> 64 * 20 * 10 = 12800
-            nn.Linear(64 * h * w, 512),
-            nn.ReLU(),
-            nn.Linear(512, n_actions)
+            nn.Linear(256, n_actions)
         )
 
     def forward(self, x):
         x = x.to(device).float()
-        return self.net(x)
+        x = x.flatten(start_dim=1)
+        return self.model(x)
 
 def run():
     env = TetrisEnv()
-    env.pyRender(False)
+    env.pyRender(True)
     obs_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
-    model = DQNCNN(obs_shape, n_actions).to(device)
-    checkpoint = torch.load("pretrained_dqn.pth", weights_only=False)
-    #model.load_state_dict(checkpoint['model_state'])
-    model.load_state_dict(checkpoint) # when using 'normally generated' pth as opposed to above line
+    model = DQN(obs_shape, n_actions).to(device)
+    checkpoint = torch.load(CHECKPOINT_PATH, weights_only=False)
+    try:
+        model.load_state_dict(checkpoint['model_state'])
+    except:
+        try:
+            model.load_state_dict(checkpoint) # when using 'normally generated' pth as opposed to above line
+        except:
+            pass
     model.eval()
 
     def select_action(state):
-        epsilon_eval = 0.01
+        epsilon_eval = 0.00
         if np.random.rand() < epsilon_eval:
             action = env.action_space.sample()
         else:
@@ -99,7 +101,7 @@ def run():
             total_reward += reward
 
             # Wait for x milliseconds to better interpret AI actions
-            # time.delay(100)
+            time.delay(100)
         print(f"Total Reward: {total_reward:.2f}")
 
     env.close()
