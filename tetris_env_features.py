@@ -1,5 +1,5 @@
-# tetris_env_features.py
-# Feature-based version of your existing tetris_env.py
+# tetris_env_features_fixed.py
+# FIXED: Reward system aligned with actual Tetris scoring
 
 import os
 os.environ['SDL_AUDIODRIVER'] = 'dummy'
@@ -21,40 +21,36 @@ pygame.mixer.music.stop = lambda *args, **kwargs: None
 
 from game import Game
 
-class TetrisEnvFeatures(gym.Env):
+class TetrisEnvFeaturesFixed(gym.Env):
     """
-    Feature-based Tetris environment using your existing game logic
+    FIXED: Tetris environment with properly aligned reward system
     """
     metadata = {'render.modes': ['human']}
 
     def __init__(self):
         super().__init__()
-        # Use your existing game instance
         self.game = Game()
         
-        # Grid dimensions from your existing code
         self.grid_height, self.grid_width = len(self.game.grid.grid), len(self.game.grid.grid[0])
 
-        # NEW: Exact 4-feature approach like online version
-        # Features: [lines_cleared, holes, bumpiness, height_sum]
+        # Keep same 4-feature observation space
         self.observation_space = spaces.Box(
-            low=0.0, high=200.0,  # Don't normalize - let network learn scale
-            shape=(4,),  # Exact match to online version
+            low=0.0, high=200.0,
+            shape=(4,),
             dtype=np.float32
         )
         
-        # Keep your existing action space
         self.action_space = spaces.Discrete(6)
 
-        # Keep existing tracking but add lines cleared tracking
+        # CRITICAL: Track score changes for proper reward calculation
         self.last_score = 0
+        self.last_lines_cleared = 0
         self._screen = None
         self.cleared = False
         self.stepCount = 0
         self.lastAction = 3
         self.lastGridScore = 0
         self.render = False
-        self.last_lines_cleared = 0  # NEW: Track for features
 
     def pyRender(self, render):
         """Keep your existing render setup"""
@@ -76,20 +72,20 @@ class TetrisEnvFeatures(gym.Env):
             self.next_rect = pygame.Rect(320, 215, 170, 180)
 
             self.screen = pygame.display.set_mode((500, 620))
-            pygame.display.set_caption("Python Tetris")
+            pygame.display.set_caption("Python Tetris - FIXED")
 
     def reset(self):
-        """Start a new episode - keep your existing reset logic"""
+        """Start a new episode"""
         self.game.reset()
-        self.last_score = 0
+        self.last_score = 0  # CRITICAL: Reset score tracking
         self._screen = None
         self.cleared = False
         self.stepCount = 0
-        self.last_lines_cleared = 0  # Reset this too
+        self.last_lines_cleared = 0
         return self._get_board_props()
 
     def step(self, action):
-        """Apply action - keep your existing step logic but return features"""
+        """Apply action with FIXED reward calculation"""
         rows_cleared = 0
 
         # Keep your existing action mapping
@@ -117,13 +113,17 @@ class TetrisEnvFeatures(gym.Env):
 
         done = self.game.game_over
 
-        # Track lines cleared for next observation
+        # FIXED: Calculate reward based on SCORE IMPROVEMENT, not survival
+        current_score = self.game.score
+        score_improvement = current_score - self.last_score
+        
+        reward = self._calculate_fixed_reward(score_improvement, rows_cleared, done)
+        
+        # Update tracking
+        self.last_score = current_score
         self.last_lines_cleared = rows_cleared
         
-        # Use exact online reward calculation
-        reward = self._calculate_online_reward(rows_cleared)
-
-        info = {'score': self.game.score}
+        info = {'score': self.game.score, 'score_improvement': score_improvement}
         self.stepCount = self.stepCount + 1
 
         # Keep your existing rendering logic
@@ -145,18 +145,48 @@ class TetrisEnvFeatures(gym.Env):
 
             pygame.display.update()
 
-        return self._get_board_props(), reward, done, info  # NEW: Use their function name
+        return self._get_board_props(), reward, done, info
+
+    def _calculate_fixed_reward(self, score_improvement, rows_cleared, done):
+        """
+        FIXED: Reward system that incentivizes score improvement, not just survival
+        
+        Primary goal: Maximize actual Tetris score
+        Secondary goals: Clear lines efficiently, survive longer
+        """
+        # PRIMARY REWARD: Direct score improvement (this aligns reward with actual game score)
+        reward = score_improvement * 0.1  # Scale down score to reasonable range
+        
+        # BONUS REWARDS: Additional incentives for good play
+        if rows_cleared == 1:
+            reward += 10      # Small bonus for clearing lines
+        elif rows_cleared == 2:
+            reward += 25      # Better bonus for double
+        elif rows_cleared == 3:
+            reward += 50      # Great bonus for triple  
+        elif rows_cleared == 4:
+            reward += 100     # Excellent bonus for Tetris!
+        
+        # SURVIVAL INCENTIVE: Very small positive reward for staying alive
+        # But much smaller than score improvement potential
+        if not done:
+            reward += 0.1     # Tiny survival bonus (was 1.0 - the problem!)
+        
+        # DEATH PENALTY: Moderate penalty for dying
+        if done:
+            reward -= 50      # Death penalty
+            
+        return reward
 
     def _get_board_props(self):
-        """EXACT: Same as online version - 4 features, no normalization"""
+        """Keep same feature extraction as before"""
         grid = self.get_grid_matrix()
         
-        lines_cleared = self.last_lines_cleared  # From previous step
+        lines_cleared = self.last_lines_cleared
         holes = self._number_of_holes(grid)
         total_bumpiness = self._bumpiness(grid) 
         sum_height = self._height(grid)
         
-        # Return raw values like online version (no normalization)
         return np.array([
             lines_cleared,
             holes,
@@ -164,17 +194,7 @@ class TetrisEnvFeatures(gym.Env):
             sum_height
         ], dtype=np.float32)
 
-    def _calculate_online_reward(self, rows_cleared):
-        """EXACT: Same simple reward as online version"""
-        # Simple scoring: base + quadratic bonus for lines
-        score = 1 + (rows_cleared ** 2) * self.game.grid.num_cols  # 10 for our grid
-        
-        if self.game.game_over:
-            score -= 20  # Small death penalty only
-            
-        return score
-
-    # EXACT: Online version's feature calculation methods
+    # Keep all your existing helper methods
     def _number_of_holes(self, board):
         """Count holes below blocks"""
         holes = 0
@@ -192,7 +212,6 @@ class TetrisEnvFeatures(gym.Env):
         total_bumpiness = 0
         heights = []
 
-        # Get column heights
         for col in range(self.game.grid.num_cols):
             height = 0
             for row in range(self.game.grid.num_rows):
@@ -201,7 +220,6 @@ class TetrisEnvFeatures(gym.Env):
                     break
             heights.append(height)
         
-        # Sum absolute differences between adjacent columns
         for i in range(len(heights) - 1):
             total_bumpiness += abs(heights[i] - heights[i+1])
 
@@ -217,68 +235,6 @@ class TetrisEnvFeatures(gym.Env):
                     sum_height += height
                     break
         return sum_height
-
-    # Keep all your existing helper methods but add the new ones needed for features
-    def get_column_heights(self, grid):
-        heights = [0] * self.game.grid.num_cols
-        for col in range(self.game.grid.num_cols):
-            for row in range(self.game.grid.num_rows):
-                if grid[row][col] != 0:
-                    heights[col] = self.game.grid.num_rows - row
-                    break
-        return heights
-
-    def count_holes(self, grid):
-        holes = 0
-        for col in range(self.game.grid.num_cols):
-            block_found = False
-            for row in range(self.game.grid.num_rows):
-                if grid[row][col] != 0:
-                    block_found = True
-                elif block_found and grid[row][col] == 0:
-                    holes += 1
-        return holes
-
-    def get_bumpiness(self, grid):
-        heights = self.get_column_heights(grid)
-        bumpiness = 0
-        for i in range(len(heights) - 1):
-            bumpiness += abs(heights[i] - heights[i + 1])
-        return bumpiness
-
-    def tetris_ready(self, grid, well_column=9):
-        """Check if board is set up for a tetris (4-line clear)"""
-        heights = self.get_column_heights(grid)
-        well_height = heights[well_column]
-        
-        # Don't try Tetris if well is too high
-        if well_height > self.game.grid.num_rows - 4:
-            return False
-        
-        # Check if we have a valid tetris setup
-        for start_row in range(self.game.grid.num_rows - well_height - 3, -1, -1):
-            zone_complete = True
-            for row_offset in range(4):
-                row_index = start_row + row_offset
-                if row_index >= self.game.grid.num_rows:
-                    zone_complete = False
-                    break
-                    
-                for col in range(self.game.grid.num_cols):
-                    if col == well_column:
-                        if grid[row_index][col] != 0:  # Well should be empty
-                            zone_complete = False
-                            break
-                    else:
-                        if grid[row_index][col] == 0:  # Others should be filled
-                            zone_complete = False
-                            break
-                if not zone_complete:
-                    break
-            
-            if zone_complete:
-                return True
-        return False
 
     def get_grid_matrix(self):
         return [row[:] for row in self.game.grid.grid]

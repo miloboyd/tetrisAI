@@ -1,5 +1,5 @@
-# test_trained_model.py
-# Fixed version that matches your training setup exactly
+# test_simple_model.py
+# Test the simple 4→32→32→6 network
 
 import os
 import numpy as np
@@ -10,161 +10,136 @@ import torch.nn as nn
 from tetris_env_features import TetrisEnvFeatures
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT_PATH = 'dqn_features_checkpoint.pth'
+CHECKPOINT_PATH = 'dqn_simple_checkpoint.pth'
 
-# Need ReplayBuffer class definition for loading checkpoint
-class ReplayBuffer:
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.buffer = []
-        self.pos = 0
-
-    def push(self, transition):
-        if len(self.buffer) < self.capacity:
-            self.buffer.append(transition)
-        else:
-            self.buffer[self.pos] = transition
-        self.pos = (self.pos + 1) % self.capacity
-
-    def sample(self, batch_size):
-        indices = np.random.choice(len(self.buffer), batch_size, replace=False)
-        batch = [self.buffer[i] for i in indices]
-        return map(np.array, zip(*batch))
-
-    def __len__(self):
-        return len(self.buffer)
-
-# EXACT same model as your training script
-class FeatureDQN(nn.Module):
-    def __init__(self, feature_size, n_actions):
+# EXACT same simple network as training
+class SimpleDQN(nn.Module):
+    def __init__(self, feature_size=4, n_actions=6):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(feature_size, 256),
+            nn.Linear(feature_size, 32),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(32, 32),
             nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, n_actions)
+            nn.Linear(32, n_actions)
         )
 
     def forward(self, x):
         x = x.to(device).float()
-        if len(x.shape) == 1:  # Single sample
+        if len(x.shape) == 1:
             x = x.unsqueeze(0)
         return self.model(x)
 
-def test_model():
-    print("🎮 Testing Your Trained Tetris AI")
+def test_simple_model():
+    print("🎮 Testing Simple Tetris AI (4→32→32→6)")
     
-    # Setup environment exactly like training
-    env = TetrisEnvFeatures()
-    env.pyRender(True)  # Enable visual rendering
-    
-    feature_size = 4  # Your model uses 4 features
-    n_actions = 6     # Your model uses 6 actions
-    
-    print(f"Loading model with {feature_size} features and {n_actions} actions")
-    
-    # Create model with exact same architecture
-    model = FeatureDQN(feature_size, n_actions).to(device)
-    
-    # Load the checkpoint
     if not os.path.exists(CHECKPOINT_PATH):
         print(f"❌ Checkpoint not found: {CHECKPOINT_PATH}")
-        print("Make sure you've completed training first!")
+        print("Run train_dqn_simple.py first!")
         return
+    
+    # Load model
+    model = SimpleDQN().to(device)
     
     try:
-        print(f"📂 Loading checkpoint from {CHECKPOINT_PATH}")
-        checkpoint = torch.load(CHECKPOINT_PATH, map_location=device, weights_only=False)
+        checkpoint = torch.load(CHECKPOINT_PATH, map_location=device, weights_only=True)
+        model.load_state_dict(checkpoint['model_state'])
+        model.eval()
         
-        # Debug: Print what's in the checkpoint
-        print(f"📊 Checkpoint keys: {list(checkpoint.keys())}")
-        
-        # Load the model state (use correct key from your training)
-        if 'model_state' in checkpoint:
-            model.load_state_dict(checkpoint['model_state'])
-            episode = checkpoint.get('episode', 'unknown')
-            print(f"✅ Model loaded successfully from episode {episode}")
-        else:
-            print(f"❌ No 'model_state' found in checkpoint. Available keys: {list(checkpoint.keys())}")
-            return
-            
-        model.eval()  # Set to evaluation mode
+        episode = checkpoint.get('episode', 'unknown')
+        best_score = checkpoint.get('best_score', 'unknown')
+        print(f"✅ Loaded simple model from episode {episode}")
+        print(f"📊 Best training score: {best_score}")
         
     except Exception as e:
-        print(f"❌ Error loading checkpoint: {e}")
+        print(f"❌ Error loading model: {e}")
         return
     
-    print("\n🚀 Starting AI gameplay...")
-    print("📝 Watch the AI play! Features will be printed every 50 steps.")
-    print("🔄 Close the window to exit.")
+    # Setup environment
+    env = TetrisEnvFeatures()
+    env.pyRender(True)
     
-    game_number = 0
+    print("\n🚀 Starting simple AI gameplay...")
+    print("📝 Simpler network should make more varied decisions")
+    print("🔄 Close window to exit")
+    
+    game_count = 0
+    scores = []
     
     try:
         while True:
-            game_number += 1
-            print(f"\n🎯 === Game {game_number} ===")
+            game_count += 1
+            print(f"\n🎯 === Game {game_count} ===")
             
-            # Reset for new game
             state = env.reset()
             total_reward = 0
             steps = 0
             done = False
             
-            print(f"Starting features: {state}")
-            
             while not done:
-                # Handle pygame events
+                # Handle events
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         print("👋 Exiting...")
                         env.close()
+                        
+                        if scores:
+                            print(f"\n📊 Final Statistics:")
+                            print(f"   Games played: {len(scores)}")
+                            print(f"   Average score: {np.mean(scores):.1f}")
+                            print(f"   Best score: {max(scores)}")
+                            print(f"   Scores: {scores}")
                         return
                 
-                # AI decision making (NO randomness - pure learned policy)
+                # AI decision (pure exploitation)
                 with torch.no_grad():
                     state_tensor = torch.tensor(state, dtype=torch.float32)
                     q_values = model(state_tensor)
-                    action = int(q_values.argmax().item())  # Best action
+                    action = int(q_values.argmax().item())
                     
-                    # Debug: Print AI's thinking every 50 steps
-                    if steps % 50 == 0:
+                    # Show AI thinking every 100 steps
+                    if steps % 100 == 0:
                         action_names = ["Left", "Right", "Soft Drop", "Hard Drop", "Rotate CW", "Rotate CCW"]
-                        q_vals_cpu = q_values.cpu().numpy().flatten()
-                        best_action_name = action_names[action]
-                        print(f"  Step {steps:3d}: Features={state} → Action='{best_action_name}'")
-                        print(f"           Q-values: {q_vals_cpu}")
+                        q_vals = q_values.cpu().numpy().flatten()
+                        best_action = action_names[action]
+                        
+                        print(f"  Step {steps:3d}: Features=[{state[0]:.0f}, {state[1]:.0f}, {state[2]:.0f}, {state[3]:.0f}] → '{best_action}'")
+                        
+                        # Show which actions look good/bad
+                        action_quality = []
+                        for i, (name, q_val) in enumerate(zip(action_names, q_vals)):
+                            marker = " ←" if i == action else ""
+                            action_quality.append(f"{name}:{q_val:.1f}{marker}")
+                        print(f"           Q-values: {', '.join(action_quality)}")
                 
-                # Take the action
+                # Take action
                 next_state, reward, done, info = env.step(action)
                 total_reward += reward
                 steps += 1
                 state = next_state
                 
-                # Add delay so we can watch (adjust for speed)
-                time.wait(100)  # 100ms delay - make smaller for faster gameplay
+                # Adjust game speed (lower = faster)
+                time.wait(60)
             
-            # Game finished - print results
+            # Game finished
             final_score = info['score']
-            print(f"\n🏁 Game {game_number} Results:")
-            print(f"   Final Score: {final_score}")
-            print(f"   Total Steps: {steps}")
-            print(f"   Total Reward: {total_reward:.1f}")
-            print(f"   Final Features: {state}")
+            scores.append(final_score)
             
-            # Brief pause before next game
-            print("   Next game in 3 seconds...")
-            time.wait(3000)
+            print(f"\n🏁 Game {game_count} Complete:")
+            print(f"   Score: {final_score}")
+            print(f"   Steps: {steps}")
+            print(f"   Reward: {total_reward:.1f}")
+            print(f"   Running avg: {np.mean(scores[-10:]):.1f} (last 10 games)")
+            
+            # Brief pause
+            time.wait(1500)
     
     except KeyboardInterrupt:
         print("\n👋 Interrupted by user")
     except Exception as e:
-        print(f"\n❌ Error during gameplay: {e}")
+        print(f"\n❌ Error: {e}")
     finally:
         env.close()
 
 if __name__ == "__main__":
-    test_model()
+    test_simple_model()
