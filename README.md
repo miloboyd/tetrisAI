@@ -1,18 +1,21 @@
 # TetrisAI
 
-A Deep Q-Network (DQN) implementation that learns to play Tetris using reinforcement learning. This project includes both the original feature-based approach and a fixed version with properly aligned reward systems.
+A Deep Q-Network (DQN) implementation that learns to play Tetris using reinforcement learning with advanced board state analysis and sophisticated reward engineering.
 
 ## Project Overview
 
-This project implements a DQN agent that learns to play Tetris through trial and error. The AI uses a neural network to evaluate board states and make decisions about piece placement.
+This project implements a DQN agent that learns to play Tetris through reinforcement learning, using a multi-channel observation space and carefully crafted reward functions. The AI analyzes board states through multiple features including holes, bumpiness, height factors, and Tetris setup detection to make strategic decisions about piece placement.
+
+The implementation uses a 3-channel observation system that captures the current board state, active piece position, and next piece information, allowing the AI to plan ahead and make more informed decisions.
 
 ### Key Features
 
-- **4-feature state representation** (lines cleared, holes, bumpiness, height sum)
-- **Simple neural network architecture** (4→32→32→6)
-- **Fixed reward system** that properly incentivizes score improvement
-- **Comprehensive training monitoring** with plots and statistics
-- **Resume training capability** for long training runs
+- **3-channel state representation** (board grid, current piece mask, next piece encoding)
+- **Deep neural network architecture** (512→256→6 with ReLU activations)
+- **Strategic reward system** with line clearing bonuses and Tetris setup detection
+- **Advanced board analysis** (holes, height scare factor, asymmetric bumpiness, Tetris readiness)
+- **Double DQN implementation** with experience replay and target networks
+- **Resume training capability** with full checkpoint preservation
 
 ## Setup
 
