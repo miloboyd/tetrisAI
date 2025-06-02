@@ -93,6 +93,9 @@ class TetrisEnv(gym.Env):
 
     def step(self, action):
         """Apply action, advance game, and return (obs, reward, done, info)."""
+
+        rows_cleared = 0
+
         # Action mapping
         if action == 0:
             self.game.move_left()
@@ -104,6 +107,7 @@ class TetrisEnv(gym.Env):
         elif action == 3 and hasattr(self.game, 'hard_drop'):
             #temp = self.game.score
             rows_cleared = self.game.hard_drop()
+            #print(f"Hard drop: rows_cleared={rows_cleared}, reward={reward}")
             #self.game.score = temp # undo score gain of hard-drop for the sake of training
         elif action == 4:
             self.game.rotate_clockwise()
@@ -111,12 +115,15 @@ class TetrisEnv(gym.Env):
             self.game.rotate_counterclockwise()
 
         
-
         # Gravity tick
-        self.game.move_down()
+        #self.game.move_down()
+
         if action == 3:
-            temp = self.game.update_bot()
+            #temp = self.game.update_bot()
+            pass
         else:
+            if self.stepCount % 5 == 0:
+                self.game.move_down()
             rows_cleared = self.game.update_bot()
 
 
@@ -126,51 +133,43 @@ class TetrisEnv(gym.Env):
         # Setup reward values
         grid_matrix = self.get_grid_matrix()
         holes = self.count_holes(grid_matrix)
-        height_var = self.get_height_variance(grid_matrix)
+        height_scare = self.get_height_scare_factor(grid_matrix) # height_var = self.get_height_variance(grid_matrix)
         bumpiness = self.get_bumpiness(grid_matrix)
+        tetris_ready_bonus = self.tetris_ready(grid_matrix)
 
-        
+        current = self.game.score
 
         # Compute reward based on features
         reward = 0                               # Start with neutral reward
-
-        # Reward: change in score
-        current = self.game.score
-        reward = (current - self.last_score)/10       # Incentivise gaining score  
-        self.last_score = current
-
-        #if self.game.block_locked_this_step:
-        gridScore = 0
-        gridScore += (10 - holes) * 0.1                   # Penalise holes
-        gridScore += (10 - height_var) * 0.1         # Penalise height
-        gridScore += (10 - bumpiness) * 0.1          # Penalise uneven surfaces 
-        reward += gridScore #- self.lastGridScore     # Add difference between last blocks 'effect' on the board and current ones (did it make the board state worse or better?)
-        self.lastGridScore = gridScore
-
-        
-        
+     
         if rows_cleared == 1:                    # Incentivise row clears
-            reward += 250
+            reward += 400
         elif rows_cleared == 2:
-            reward += 500
+            reward += 1000
         elif rows_cleared == 3:
-            reward += 750
+            reward += 1500
         elif rows_cleared == 4:
-            reward += 1000  # Tetris
+            reward += 3000  # Tetris
+
+        if tetris_ready_bonus:
+            reward += 200
+
+        reward -= holes * 5
+        reward -= height_scare * 10
+        reward -= bumpiness * 1
+
+        reward += 5 # survival bonus 
 
         if action == 3 and self.lastAction == 3:
-            reward -= 500                            # punish hard-drop spam
-        self.lastAction = action
+            reward -= 100                            # punish hard-drop spam
 
+        if done: # death penalty
+            reward -= 200                           #punish dying step
 
-        #reward += self.stepCount / 100          # reward surviving
+        reward = reward * 0.1                       #scale end reward      
 
-        reward = reward * 1                       #scale end reward                     
+        self.lastAction = action               
 
-        if done:
-            reward -= 50                           #punish dying step
-
-        
         info = {'score': current}
         self.stepCount = self.stepCount + 1
 
@@ -195,9 +194,7 @@ class TetrisEnv(gym.Env):
 
         return self._get_observation_wide(), reward, done, info
 
-
-
-
+    #reward functions
 
     def get_column_heights(self, grid):
         heights = [0] * self.game.grid.num_cols
@@ -207,13 +204,58 @@ class TetrisEnv(gym.Env):
                     heights[col] = self.game.grid.num_rows - row
                     break
         return heights
-
-    def get_height_variance(self, grid):
+    
+    def get_height_scare_factor(self, grid): #height scare instead - above threshold increase exponentially
         heights = self.get_column_heights(grid)
-        mean_height = sum(heights) / len(heights)
-        imbalance_penalty = sum((h - mean_height) ** 2 for h in heights) / len(heights)  # variance
-        base_sum = sum(heights)
-        return base_sum + imbalance_penalty  # penalize imbalance
+        well_column = 9 #disregard this for height calculations
+
+        non_well_heights = [h for i, h in enumerate(heights) if i != well_column] # right side column - can remove from array
+        mean_height = sum(non_well_heights) / len(non_well_heights)
+        scare_height = 12
+        excess_height = max(0, mean_height - scare_height)
+        return excess_height
+
+    # def get_height_variance(self, grid):
+    #     heights = self.get_column_heights(grid)
+    #     mean_height = sum(heights) / len(heights)
+    #     imbalance_penalty = sum((h - mean_height) ** 2 for h in heights) / len(heights)  # variance
+    #     base_sum = sum(heights)
+    #     return base_sum + imbalance_penalty  # penalize imbalance
+    
+    def tetris_ready(self, grid, well_column=9):
+        heights = self.get_column_heights(grid)
+        well_height = heights[well_column]
+        
+        # Don't try Tetris if well is too high
+        if well_height > self.game.grid.num_rows - 4:
+            return False
+        
+        # Check multiple potential Tetris zones, not just bottom 4
+        tetris_zones = 0
+        for start_row in range(self.game.grid.num_rows - well_height - 3, -1, -1):
+            zone_complete = True
+            for row_offset in range(4):
+                row_index = start_row + row_offset
+                if row_index >= self.game.grid.num_rows:
+                    zone_complete = False
+                    break
+                    
+                for col in range(self.game.grid.num_cols):
+                    if col == well_column:
+                        if grid[row_index][col] != 0:  # Well should be empty
+                            zone_complete = False
+                            break
+                    else:
+                        if grid[row_index][col] == 0:  # Others should be filled
+                            zone_complete = False
+                            break
+                if not zone_complete:
+                    break
+            
+            if zone_complete:
+                tetris_zones += 1
+        
+        return tetris_zones > 0  # Return True if any valid Tetris zone exists
 
     def count_holes(self, grid):
         holes = 0
@@ -226,16 +268,27 @@ class TetrisEnv(gym.Env):
                     holes += 1
         return holes
 
-    def get_bumpiness(self, grid):
+    # def get_bumpiness(self, grid):
+    #     heights = self.get_column_heights(grid)
+    #     bumpiness = 0
+    #     for i in range(len(heights) - 1):
+    #         bumpiness += abs(heights[i] - heights[i + 1])
+    #     return bumpiness
+    
+    def get_bumpiness(self, grid): #introduce assymmetry to 
         heights = self.get_column_heights(grid)
         bumpiness = 0
         for i in range(len(heights) - 1):
-            bumpiness += abs(heights[i] - heights[i + 1])
+            difference = abs(heights[i] - heights[i + 1])
+            if (i < len(heights)) // 2:
+                weight = 0.8
+            else: 
+                weight = 1.2
+            bumpiness += difference * weight
         return bumpiness
     
     def get_grid_matrix(self):
         return [row[:] for row in self.game.grid.grid]
-
 
     def render(self, mode='human'):
         """Render the game via Pygame."""
